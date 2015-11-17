@@ -3,23 +3,8 @@
 module Main where
 
 import UI.NCurses
--- import Data.Sequence
-
-import Control.Lens.TH
 
 data Direction = DUp | DDown | DLeft | DRight
-
-data SnakeState = SnakeState {
-    -- _snake :: Seq (Int, Int),
-    _snake :: (Integer, Integer),
-    _grow :: Int,
-    _direction :: Direction
-}
-
-makeLenses ''SnakeState
-
-initialSnakeState :: SnakeState
-initialSnakeState = SnakeState { _snake = (0, 0), _grow = 0, _direction = DRight }
 
 changeDirection :: Key -> Direction -> Direction
 changeDirection KeyLeftArrow   DUp    = DLeft
@@ -50,10 +35,10 @@ drawCharX (r, c) ch = do
     drawGlyph $ Glyph ch []
 
 main :: IO ()
-main = runCurses $ snakeRun initialSnakeState
+main = runCurses $ snakeRun (0, 0) 0 DRight
 
-snakeRun :: SnakeState -> Curses ()
-snakeRun (SnakeState {_snake = position, _direction = d }) = do
+snakeRun :: (Integer, Integer) -> Int -> Direction -> Curses ()
+snakeRun position _ d = do
 
     w <- defaultWindow
 
@@ -75,4 +60,4 @@ snakeRun (SnakeState {_snake = position, _direction = d }) = do
                 updateWindow w $ drawCharX position ' '
                 render
 
-                snakeRun $ SnakeState { _snake = newPosition, _grow = 0, _direction = newDirection }
+                snakeRun newPosition 0 newDirection
