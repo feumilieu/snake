@@ -52,7 +52,7 @@ oops s = do
             wnew <- newWindow high width rnew cnew
 
             updateWindow wnew $ do
-                setAttribute (AttributeColor )
+                -- setAttribute (AttributeColor )
                 drawString s
             render
             _ <- getEvent w Nothing
