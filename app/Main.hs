@@ -1,6 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: different speed when running vert vs horiz
+-- TODO: color oops
+-- TODO: generation of rabbits
+-- TODO: eating rabbits and growing
+-- TODO: different speed when running vert vs horiz (?)
 
 module Main where
 
@@ -47,7 +50,10 @@ oops s = do
         cnew = quot c 2 - quot width 2
         in do
             wnew <- newWindow high width rnew cnew
-            updateWindow wnew $ drawString s
+
+            updateWindow wnew $ do
+                setAttribute (AttributeColor )
+                drawString s
             render
             _ <- getEvent w Nothing
             closeWindow wnew
