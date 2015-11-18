@@ -1,6 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: check if generating rabbits is ok (boundaries)
 -- TODO: error when the snake eats himself
 -- TODO: meaningful messages when the snake eats border
 -- TODO: use state monad
@@ -59,8 +58,8 @@ newRabbitPosition :: Curses Position
 newRabbitPosition = do
     w <- defaultWindow
     (r, c) <- updateWindow w $ windowSize
-    rr <- liftIO $ randomRIO (0, r)
-    rc <- liftIO $ randomRIO (0, c)
+    rr <- liftIO $ randomRIO (0, r - 1)
+    rc <- liftIO $ randomRIO (0, c - 1)
     return (rr, rc)
 
 showRabbit :: Position -> Update ()
