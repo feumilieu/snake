@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- TODO: check if generating rabbits is ok (boundaries)
 -- TODO: error when the snake eats himself
 -- TODO: meaningful messages when the snake eats border
 -- TODO: use state monad
