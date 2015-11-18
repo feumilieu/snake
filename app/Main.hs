@@ -7,7 +7,7 @@
 module Main where
 
 import UI.NCurses
-import Control.Monad (void)
+import Control.Monad
 
 data Direction = DUp | DDown | DLeft | DRight
 
@@ -39,21 +39,18 @@ drawCharX (r, c) ch = do
     moveCursor r c
     drawGlyph $ Glyph ch []
 
-mkDoInColor :: Color -> Color -> Integer -> Curses (Update a -> Update a)
-mkDoInColor fg bg colorID = do
+newColorIDX :: Color -> Color -> Integer -> Curses (Maybe ColorID)
+newColorIDX fg bg cid = do
     colorOk <- supportsColor
-    if not colorOk
-        then return id
-        else do
-            cid <- newColorID fg bg colorID
-            return $ \ u -> do
-                void $ setAttribute (AttributeColor cid) True
-                ret <- u
-                void $ setAttribute (AttributeColor cid) False
-                return ret
+    if colorOk
+        then liftM Just $ newColorID fg bg cid
+        else return Nothing
 
-oops :: (Update () -> Update ()) -> String -> Curses ()
-oops wrapper s = do
+whenMaybe :: Applicative m => Maybe a -> (a -> m()) -> m ()
+whenMaybe m f = maybe (pure ()) f m
+
+oops :: Maybe ColorID -> String -> Curses ()
+oops cid s = do
     w <- defaultWindow
     (r, c) <- updateWindow w $ windowSize
     let
@@ -65,7 +62,9 @@ oops wrapper s = do
             wnew <- newWindow high width rnew cnew
             updateWindow wnew $ do
                 moveCursor 1 1
-                wrapper $ drawString s
+                whenMaybe cid $ \ x -> setAttribute (AttributeColor x) True
+                drawString s
+                whenMaybe cid $ \ x -> setAttribute (AttributeColor x) False
             render
             void $ getEvent w Nothing
             closeWindow wnew
@@ -97,10 +96,10 @@ snakeRun position _ d = do
 
 main :: IO ()
 main = runCurses $ do
-    doInRed <- mkDoInColor ColorRed ColorDefault 1
+    redColorId <- newColorIDX ColorRed ColorDefault 1
     ex <- tryCurses $ do
         void $ setCursorMode CursorInvisible
         snakeRun (0, 0) 0 DRight
     case ex of
         Right () -> return ()
-        Left e -> oops doInRed $ show e
+        Left e -> oops redColorId $ show e
