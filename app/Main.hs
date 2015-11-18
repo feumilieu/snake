@@ -1,6 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: color oops
 -- TODO: generation of rabbits
 -- TODO: eating rabbits and growing
 -- TODO: different speed when running vert vs horiz (?)
@@ -8,6 +7,7 @@
 module Main where
 
 import UI.NCurses
+import Control.Monad (void)
 
 data Direction = DUp | DDown | DLeft | DRight
 
@@ -39,8 +39,21 @@ drawCharX (r, c) ch = do
     moveCursor r c
     drawGlyph $ Glyph ch []
 
-oops :: String -> Curses ()
-oops s = do
+mkDoInColor :: Color -> Color -> Integer -> Curses (Update a -> Update a)
+mkDoInColor fg bg colorID = do
+    colorOk <- supportsColor
+    if not colorOk
+        then return id
+        else do
+            cid <- newColorID fg bg colorID
+            return $ \ u -> do
+                void $ setAttribute (AttributeColor cid) True
+                ret <- u
+                void $ setAttribute (AttributeColor cid) False
+                return ret
+
+oops :: (Update () -> Update ()) -> String -> Curses ()
+oops wrapper s = do
     w <- defaultWindow
     (r, c) <- updateWindow w $ windowSize
     let
@@ -50,12 +63,11 @@ oops s = do
         cnew = quot c 2 - quot width 2
         in do
             wnew <- newWindow high width rnew cnew
-
             updateWindow wnew $ do
-                -- setAttribute (AttributeColor )
-                drawString s
+                moveCursor 1 1
+                wrapper $ drawString s
             render
-            _ <- getEvent w Nothing
+            void $ getEvent w Nothing
             closeWindow wnew
             render
 
@@ -85,9 +97,10 @@ snakeRun position _ d = do
 
 main :: IO ()
 main = runCurses $ do
+    doInRed <- mkDoInColor ColorRed ColorDefault 1
     ex <- tryCurses $ do
-        _ <- setCursorMode CursorInvisible
+        void $ setCursorMode CursorInvisible
         snakeRun (0, 0) 0 DRight
     case ex of
         Right () -> return ()
-        Left e -> oops $ show e
+        Left e -> oops doInRed $ show e

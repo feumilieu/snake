@@ -17,7 +17,6 @@ flags:
         use-pkgconfig: true
         force-narrow-library: true
 
-
 # Extra package databases containing global packages
 extra-package-dbs: []
 
