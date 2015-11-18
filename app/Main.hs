@@ -14,6 +14,7 @@ import System.Random
 import UI.NCurses
 
 data Direction = DUp | DDown | DLeft | DRight
+type Position = (Integer, Integer)
 
 changeDirection :: Key -> Direction -> Direction
 changeDirection KeyLeftArrow   DUp    = DLeft
@@ -26,7 +27,7 @@ changeDirection KeyRightArrow  DLeft  = DUp
 changeDirection KeyRightArrow  DRight = DDown
 changeDirection _              d      = d
 
-move :: Direction -> (Integer, Integer) -> (Integer, Integer)
+move :: Direction -> Position -> Position
 move DUp    (r, c) = (r - 1, c    )
 move DDown  (r, c) = (r + 1, c    )
 move DLeft  (r, c) = (r,     c - 1)
@@ -38,7 +39,7 @@ directionToChar DDown  = 'v'
 directionToChar DLeft  = '<'
 directionToChar DRight = '>'
 
-drawCharX :: Char -> (Integer, Integer) -> Update ()
+drawCharX :: Char -> Position -> Update ()
 drawCharX ch (r, c) = do
     moveCursor r c
     drawGlyph $ Glyph ch []
@@ -53,15 +54,15 @@ newColorIDX fg bg cid = do
 whenMaybe :: Applicative m => Maybe a -> (a -> m ()) -> m ()
 whenMaybe m f = maybe (pure ()) f m
 
-newRabbit :: Curses (Integer, Integer)
-newRabbit = do
+newRabbitPosition :: Curses Position
+newRabbitPosition = do
     w <- defaultWindow
     (r, c) <- updateWindow w $ windowSize
     rr <- liftIO $ randomRIO (0, r)
     rc <- liftIO $ randomRIO (0, c)
     return (rr, rc)
 
-showRabbit :: (Integer, Integer) -> Update ()
+showRabbit :: Position -> Update ()
 showRabbit = drawCharX '@'
 
 oops :: Maybe ColorID -> String -> Curses ()
@@ -93,13 +94,13 @@ firstBodyTail s =
                 EmptyR -> error "firstBodyTail: the length of the sequence is less than 2"
                 b :> t -> (f, b, t)
 
-snakeRun :: Seq (Integer, Integer) -> (Integer, Integer) -> Int -> Direction -> Curses ()
-snakeRun s r g d = do
+snakeRun :: Seq Position -> Position -> Int -> Direction -> Curses ()
+snakeRun snake rabbit grow direction = do
 
     w <- defaultWindow
-    let (sfirst, sbody, slast) = firstBodyTail s
+    let (sfirst, sbody, slast) = firstBodyTail snake
 
-    updateWindow w $ drawCharX (directionToChar d) sfirst
+    updateWindow w $ drawCharX (directionToChar direction) sfirst
     render
 
     ev <- getEvent w (Just 100)
@@ -110,27 +111,27 @@ snakeRun s r g d = do
 
             let
                 newDirection = case ev of
-                    Just (EventSpecialKey k)  -> changeDirection k d
-                    _ -> d
-                newPosition = move newDirection sfirst
+                    Just (EventSpecialKey k)  -> changeDirection k direction
+                    _ -> direction
+                newSFirst = move newDirection sfirst
 
-            (nr, ng) <- if newPosition == r
+            (newRabbit, newGrow) <- if newSFirst == rabbit
                 then do
-                    nr' <- newRabbit
+                    nr' <- newRabbitPosition
                     updateWindow w $ showRabbit nr'
-                    return (nr', g + 3)
+                    return (nr', grow + 3)
                 else
-                    return (r, if g == 0 then 0 else g - 1)
+                    return (rabbit, if grow == 0 then 0 else grow - 1)
 
             updateWindow w $ do
-                when (g == 0) $ drawCharX ' ' slast
+                when (grow == 0) $ drawCharX ' ' slast
                 drawCharX snakeBodyChar sfirst
 
             snakeRun
-                (newPosition <| sfirst <| (if (g == 0) then sbody else (sbody |> slast)))
-                nr ng newDirection
+                (newSFirst <| sfirst <| (if (grow == 0) then sbody else (sbody |> slast)))
+                newRabbit newGrow newDirection
 
-initialSnake :: Seq (Integer, Integer)
+initialSnake :: Seq Position
 initialSnake = fromList $ zip (repeat 0) [5, 4 .. 0]
 
 snakeBodyChar :: Char
@@ -139,7 +140,7 @@ snakeBodyChar = '*'
 main :: IO ()
 main = runCurses $ do
     redColorId <- newColorIDX ColorRed ColorDefault 1
-    rabbit <- newRabbit
+    rabbit <- newRabbitPosition
     w <- defaultWindow
     ex <- tryCurses $ do
         updateWindow w $ do
