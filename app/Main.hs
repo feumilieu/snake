@@ -1,13 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: generation of rabbits
 -- TODO: eating rabbits and growing
+-- TODO: use state monad
 -- TODO: different speed when running vert vs horiz (?)
 
 module Main where
 
-import UI.NCurses
 import Control.Monad
+import Control.Monad.IO.Class
+import System.Random
+import UI.NCurses
 
 data Direction = DUp | DDown | DLeft | DRight
 
@@ -49,6 +51,17 @@ newColorIDX fg bg cid = do
 whenMaybe :: Applicative m => Maybe a -> (a -> m()) -> m ()
 whenMaybe m f = maybe (pure ()) f m
 
+newRabbit :: Curses (Integer, Integer)
+newRabbit = do
+    w <- defaultWindow
+    (r, c) <- updateWindow w $ windowSize
+    rr <- liftIO $ randomRIO (0, r)
+    rc <- liftIO $ randomRIO (0, c)
+    return (rr, rc)
+
+showRabbit :: (Integer, Integer) -> Update ()
+showRabbit r = drawCharX r '@'
+
 oops :: Maybe ColorID -> String -> Curses ()
 oops cid s = do
     w <- defaultWindow
@@ -70,8 +83,8 @@ oops cid s = do
             closeWindow wnew
             render
 
-snakeRun :: (Integer, Integer) -> Int -> Direction -> Curses ()
-snakeRun position _ d = do
+snakeRun :: (Integer, Integer) -> (Integer, Integer) -> Int -> Direction -> Curses ()
+snakeRun position r _ d = do
 
     w <- defaultWindow
 
@@ -90,16 +103,29 @@ snakeRun position _ d = do
                 newPosition = move newDirection position
                 in do
 
+                    nr <- if newPosition == r
+                        then do
+                            nr' <- newRabbit
+                            updateWindow w $ do
+                                drawCharX position ' '
+                                showRabbit nr'
+                            return nr'
+                        else
+                            return r
+
                     updateWindow w $ drawCharX position ' '
 
-                    snakeRun newPosition 0 newDirection
+                    snakeRun newPosition nr 0 newDirection
 
 main :: IO ()
 main = runCurses $ do
     redColorId <- newColorIDX ColorRed ColorDefault 1
+    rabbit <- newRabbit
+    w <- defaultWindow
+    updateWindow w $ showRabbit rabbit
     ex <- tryCurses $ do
         void $ setCursorMode CursorInvisible
-        snakeRun (0, 0) 0 DRight
+        snakeRun (0, 0) rabbit 0 DRight
     case ex of
         Right () -> return ()
         Left e -> oops redColorId $ show e
