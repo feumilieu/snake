@@ -73,17 +73,16 @@ oops cid s = do
         width = 2 + (toInteger $ length s)
         rnew = quot r 2 - 1
         cnew = quot c 2 - quot width 2
-        in do
-            wnew <- newWindow high width rnew cnew
-            updateWindow wnew $ do
-                moveCursor 1 1
-                whenMaybe cid $ \ x -> setAttribute (AttributeColor x) True
-                drawString s
-                whenMaybe cid $ \ x -> setAttribute (AttributeColor x) False
-            render
-            void $ getEvent w Nothing
-            closeWindow wnew
-            render
+    wnew <- newWindow high width rnew cnew
+    updateWindow wnew $ do
+        moveCursor 1 1
+        whenMaybe cid $ \ x -> setAttribute (AttributeColor x) True
+        drawString s
+        whenMaybe cid $ \ x -> setAttribute (AttributeColor x) False
+    render
+    void $ getEvent w Nothing
+    closeWindow wnew
+    render
 
 firstBodyTail :: Seq a -> (a, Seq a, a)
 firstBodyTail s =
@@ -98,7 +97,7 @@ snakeRun :: Seq (Integer, Integer) -> (Integer, Integer) -> Int -> Direction -> 
 snakeRun s r g d = do
 
     w <- defaultWindow
-    (sfirst, sbody, slast) <- return $ firstBodyTail s
+    let (sfirst, sbody, slast) = firstBodyTail s
 
     updateWindow w $ drawCharX (directionToChar d) sfirst
     render
@@ -107,29 +106,29 @@ snakeRun s r g d = do
     case ev of
         Just (EventCharacter 'q') -> return ()
         Just (EventCharacter 'Q') -> return ()
-        _ ->
+        _ -> do
+
             let
                 newDirection = case ev of
                     Just (EventSpecialKey k)  -> changeDirection k d
                     _ -> d
                 newPosition = move newDirection sfirst
-                in do
 
-                    (nr, ng) <- if newPosition == r
-                        then do
-                            nr' <- newRabbit
-                            updateWindow w $ showRabbit nr'
-                            return (nr', g + 3)
-                        else
-                            return (r, if g == 0 then 0 else g - 1)
+            (nr, ng) <- if newPosition == r
+                then do
+                    nr' <- newRabbit
+                    updateWindow w $ showRabbit nr'
+                    return (nr', g + 3)
+                else
+                    return (r, if g == 0 then 0 else g - 1)
 
-                    updateWindow w $ do
-                        when (g == 0) $ drawCharX ' ' slast
-                        drawCharX snakeBodyChar sfirst
+            updateWindow w $ do
+                when (g == 0) $ drawCharX ' ' slast
+                drawCharX snakeBodyChar sfirst
 
-                    snakeRun
-                        (newPosition <| sfirst <| (if (g == 0) then sbody else (sbody |> slast)))
-                        nr ng newDirection
+            snakeRun
+                (newPosition <| sfirst <| (if (g == 0) then sbody else (sbody |> slast)))
+                nr ng newDirection
 
 initialSnake :: Seq (Integer, Integer)
 initialSnake = fromList $ zip (repeat 0) [5, 4 .. 0]
