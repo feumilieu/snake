@@ -48,7 +48,7 @@ newColorIDX fg bg cid = do
         then liftM Just $ newColorID fg bg cid
         else return Nothing
 
-whenMaybe :: Applicative m => Maybe a -> (a -> m()) -> m ()
+whenMaybe :: Applicative m => Maybe a -> (a -> m ()) -> m ()
 whenMaybe m f = maybe (pure ()) f m
 
 newRabbit :: Curses (Integer, Integer)
