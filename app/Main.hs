@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: use state monad
 -- TODO: error when the snake eats himself
 -- TODO: meaningful messages when the snake eats border
--- TODO: different speed when running vert vs horiz (?)
+-- TODO: use state monad
+-- TODO: accelerate key
 
 module Main where
 
