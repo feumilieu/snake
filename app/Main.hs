@@ -1,20 +1,30 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- TODO: error when the snake eats himself
--- TODO: meaningful messages when the snake eats border
--- TODO: use state monad
--- TODO: accelerate key
-
 module Main where
 
 import Data.Sequence hiding (zip, length)
+import Data.Maybe
+import Control.Lens hiding ((<|), (|>))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.Maybe
 import System.Random
 import UI.NCurses
 
 data Direction = DUp | DDown | DLeft | DRight
 type Position = (Integer, Integer)
+
+data SnakeState = SnakeState
+    { _snake     :: Seq Position
+    , _rabbit    :: Position
+    , _grow      :: Int
+    , _direction :: Direction
+    , _redID     :: Maybe ColorID
+    }
+
+makeLenses ''SnakeState
 
 changeDirection :: Key -> Direction -> Direction
 changeDirection KeyLeftArrow   DUp    = DLeft
@@ -51,16 +61,19 @@ newColorIDX fg bg cid = do
         then liftM Just $ newColorID fg bg cid
         else return Nothing
 
-whenMaybe :: Applicative m => Maybe a -> (a -> m ()) -> m ()
-whenMaybe m f = maybe (pure ()) f m
+whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust m f = maybe (pure ()) f m
 
-newRabbitPosition :: Curses Position
-newRabbitPosition = do
+isElementOf :: Eq a => a -> Seq a -> Bool
+isElementOf e s = isJust $ elemIndexL e s
+
+newRabbitPosition :: Seq Position -> Curses Position
+newRabbitPosition s = do
     w <- defaultWindow
     (r, c) <- updateWindow w $ windowSize
     rr <- liftIO $ randomRIO (0, r - 1)
     rc <- liftIO $ randomRIO (0, c - 1)
-    return (rr, rc)
+    if (rr, rc) `isElementOf` s then newRabbitPosition s else return (rr, rc)
 
 showRabbit :: Position -> Update ()
 showRabbit = drawCharX '@'
@@ -77,62 +90,86 @@ oops cid s = do
     wnew <- newWindow high width rnew cnew
     updateWindow wnew $ do
         moveCursor 1 1
-        whenMaybe cid $ \ x -> setAttribute (AttributeColor x) True
+        whenJust cid $ \ x -> setAttribute (AttributeColor x) True
         drawString s
-        whenMaybe cid $ \ x -> setAttribute (AttributeColor x) False
+        whenJust cid $ \ x -> setAttribute (AttributeColor x) False
     render
     void $ getEvent w Nothing
     closeWindow wnew
     render
 
-firstBodyTail :: Seq a -> (a, Seq a, a)
-firstBodyTail s =
-    case viewl s of
-        EmptyL -> error "firstBodyTail: the length of the sequence is less than 1"
-        f :< tt ->
-            case viewr tt of
-                EmptyR -> error "firstBodyTail: the length of the sequence is less than 2"
-                b :> t -> (f, b, t)
+dropLast :: Seq a -> Seq a
+dropLast s =
+    case viewr s of
+        ss :> _ -> ss
+        EmptyR -> error "dropLast: empty sequence"
 
-snakeRun :: Seq Position -> Position -> Int -> Direction -> Curses ()
-snakeRun snake rabbit grow direction = do
-
+isBorder :: Position -> Curses Bool
+isBorder (r, c) = do
     w <- defaultWindow
-    let (sfirst, sbody, slast) = firstBodyTail snake
+    (wr, wc) <- updateWindow w $ windowSize
+    return $ r < 0 || c < 0 || r >= wr || c >= wc
 
-    updateWindow w $ drawCharX (directionToChar direction) sfirst
-    render
+snakeRun :: StateT SnakeState (MaybeT Curses) ()
+snakeRun = do
 
-    ev <- getEvent w (Just 100)
+    w <- lift $ lift defaultWindow
+
+    ev <- lift $ lift $ getEvent w (Just 100)
+
     case ev of
-        Just (EventCharacter 'q') -> return ()
-        Just (EventCharacter 'Q') -> return ()
-        _ -> do
+        Just (EventCharacter 'q') -> lift mzero
+        Just (EventCharacter 'Q') -> lift mzero
+        _ -> return ()
 
-            let
-                newDirection = case ev of
-                    Just (EventSpecialKey k)  -> changeDirection k direction
-                    _ -> direction
-                newSFirst = move newDirection sfirst
+    d <- case ev of
+        Just (EventSpecialKey k) -> direction <%= changeDirection k
+        _ -> use direction
 
-            (newRabbit, newGrow) <- if newSFirst == rabbit
-                then do
-                    nr' <- newRabbitPosition
-                    updateWindow w $ showRabbit nr'
-                    return (nr', grow + 3)
-                else
-                    return (rabbit, if grow == 0 then 0 else grow - 1)
+    oldHead :< _ <- liftM viewl $ use snake
+    let newHead = move d oldHead
 
-            updateWindow w $ do
-                when (grow == 0) $ drawCharX ' ' slast
-                drawCharX snakeBodyChar sfirst
+    s <- use snake
+    red <- use redID
+    when (newHead `isElementOf` s) $ do
+        lift $ lift $ oops red "Don't eat yourself"
+        lift mzero
 
-            snakeRun
-                (newSFirst <| sfirst <| (if (grow == 0) then sbody else (sbody |> slast)))
-                newRabbit newGrow newDirection
+    border <- lift $ lift $ isBorder newHead
+    when border $ do
+        lift $ lift $ oops red "Don't eat the borders"
+        lift mzero
+
+    snake %= (newHead <|)
+
+    oldRabbit <- use rabbit
+    when (newHead == oldRabbit) $ do
+        nr' <- lift $ lift $ newRabbitPosition s
+        lift $ lift $ updateWindow w $ showRabbit nr'
+        rabbit .= nr'
+        grow += 3
+
+    _ :> l <- liftM viewr $ use snake
+    g <- use grow
+
+    lift $ lift $ updateWindow w $ do
+        when (g == 0) $ drawCharX ' ' l
+        drawCharX snakeBodyChar oldHead
+        drawCharX (directionToChar d) newHead
+
+    if g == 0
+        then snake %= dropLast
+        else grow -= 1
+
+    lift $ lift render
+
+    snakeRun
 
 initialSnake :: Seq Position
 initialSnake = fromList $ zip (repeat 0) [5, 4 .. 0]
+
+initialDirection :: Direction
+initialDirection = DRight
 
 snakeBodyChar :: Char
 snakeBodyChar = '*'
@@ -140,14 +177,20 @@ snakeBodyChar = '*'
 main :: IO ()
 main = runCurses $ do
     redColorId <- newColorIDX ColorRed ColorDefault 1
-    rabbit <- newRabbitPosition
+    void $ setCursorMode CursorInvisible
     w <- defaultWindow
-    ex <- tryCurses $ do
-        updateWindow w $ do
-            showRabbit rabbit
-            mapM_ (drawCharX snakeBodyChar) initialSnake
-        void $ setCursorMode CursorInvisible
-        snakeRun initialSnake rabbit 0 DRight
-    case ex of
-        Right () -> return ()
-        Left e -> oops redColorId $ show e
+    initialRabbit <- newRabbitPosition initialSnake
+    updateWindow w $ do
+        showRabbit initialRabbit
+        mapM_ (drawCharX snakeBodyChar) initialSnake
+        let _ :> l = viewr initialSnake
+        drawCharX (directionToChar initialDirection) l
+    render
+    void $ runMaybeT $ evalStateT snakeRun $
+        SnakeState {
+            _snake     = initialSnake,
+            _rabbit    = initialRabbit,
+            _grow      = 0,
+            _direction = initialDirection,
+            _redID     = redColorId
+        }
