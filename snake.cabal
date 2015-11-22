@@ -2,7 +2,7 @@ name:                snake
 version:             0.1.0.0
 synopsis:            The snake game in Haskell
 description:         Please see README.md
-homepage:            http://github.com/githubuser/snake#readme
+homepage:            https://github.com/feumilieu/snake#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Aleksey Makarov
@@ -25,4 +25,4 @@ executable snake
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/snake
+  location: https://github.com/feumilieu/snake
