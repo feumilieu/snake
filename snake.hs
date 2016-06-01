@@ -4,7 +4,7 @@ module Main where
 
 import Data.Sequence hiding (zip, length)
 import Data.Maybe
-import Control.Lens hiding ((<|), (|>))
+import Control.Lens hiding ((<|), (|>), (:>), (:<))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class (lift)
