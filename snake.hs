@@ -118,6 +118,7 @@ snakeRun = do
     ev <- lift $ lift $ getEvent w (Just 100)
 
     case ev of
+	-- do I have to have MaybeT here for mzero?  I suspect I don't
         Just (EventCharacter 'q') -> lift mzero
         Just (EventCharacter 'Q') -> lift mzero
         _ -> return ()
