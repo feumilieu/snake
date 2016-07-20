@@ -13,6 +13,8 @@ import Control.Monad.Trans.Maybe
 import System.Random
 import UI.NCurses
 
+-- TODO: reactive-banana: http://lpaste.net/100401
+
 data Direction = DUp | DDown | DLeft | DRight
 type Position = (Integer, Integer)
 
